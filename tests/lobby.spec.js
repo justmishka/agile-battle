@@ -31,20 +31,20 @@ test.describe('Lobby Screen', () => {
   });
 
   test('create room without name shows alert', async ({ page }) => {
-    const dialog = page.waitForEvent('dialog');
-    await page.click('#panel-create .btn');
-    const d = await dialog;
-    expect(d.message()).toContain('Enter your name');
-    await d.accept();
+    const dialogPromise = page.waitForEvent('dialog');
+    page.click('#panel-create .btn'); // fire without awaiting — dialog blocks the click
+    const dialog = await dialogPromise;
+    expect(dialog.message()).toContain('Enter your name');
+    await dialog.accept();
   });
 
   test('join room without name and code shows alert', async ({ page }) => {
     await page.click('#tab-join');
-    const dialog = page.waitForEvent('dialog');
-    await page.click('#panel-join .btn');
-    const d = await dialog;
-    expect(d.message()).toContain('Enter both');
-    await d.accept();
+    const dialogPromise = page.waitForEvent('dialog');
+    page.click('#panel-join .btn'); // fire without awaiting
+    const dialog = await dialogPromise;
+    expect(dialog.message()).toContain('Enter both');
+    await dialog.accept();
   });
 
   test('create-name input accepts text and respects maxlength', async ({ page }) => {
@@ -54,22 +54,26 @@ test.describe('Lobby Screen', () => {
   });
 
   test('pressing Enter in create-name triggers create room', async ({ page }) => {
-    // No name entered — should show alert instead of crashing
-    const dialog = page.waitForEvent('dialog');
+    let dialogMessage = '';
+    page.on('dialog', async dialog => {
+      dialogMessage = dialog.message();
+      await dialog.accept();
+    });
     await page.locator('#create-name').press('Enter');
-    const d = await dialog;
-    expect(d.message()).toContain('Enter your name');
-    await d.accept();
+    await page.waitForTimeout(500);
+    expect(dialogMessage).toContain('Enter your name');
   });
 
   test('pressing Enter in join fields triggers join', async ({ page }) => {
     await page.click('#tab-join');
-    // No values — should show alert
-    const dialog = page.waitForEvent('dialog');
+    let dialogMessage = '';
+    page.on('dialog', async dialog => {
+      dialogMessage = dialog.message();
+      await dialog.accept();
+    });
     await page.locator('#join-code').press('Enter');
-    const d = await dialog;
-    expect(d.message()).toContain('Enter both');
-    await d.accept();
+    await page.waitForTimeout(500);
+    expect(dialogMessage).toContain('Enter both');
   });
 
   test('join-code input transforms to uppercase', async ({ page }) => {
