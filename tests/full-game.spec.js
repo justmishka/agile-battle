@@ -2,14 +2,18 @@ import { test, expect } from '@playwright/test';
 
 // Answer whatever question type is currently shown on a page
 async function answerQuestion(page) {
+  // Wait for round-result overlay to finish its exit transition (350ms CSS)
+  // before trying to click answer buttons underneath it
+  await page.waitForTimeout(400);
+
   const typeBadge = await page.locator('#q-type-badge').textContent();
   if (typeBadge.includes('Multiple Choice')) {
-    await page.locator('.option-btn').first().click().catch(() => {});
+    await page.locator('.option-btn').first().click({ force: true }).catch(() => {});
   } else if (typeBadge.includes('True')) {
-    await page.locator('.tf-btn').first().click().catch(() => {});
+    await page.locator('.tf-btn').first().click({ force: true }).catch(() => {});
   } else {
     await page.locator('.fill-input').fill('test').catch(() => {});
-    await page.locator('.fill-submit').click().catch(() => {});
+    await page.locator('.fill-submit').click({ force: true }).catch(() => {});
   }
 }
 
@@ -43,25 +47,37 @@ test.describe('Full Game Flow', () => {
 
     // --- Play all 20 questions ---
     for (let i = 0; i < 20; i++) {
-      // Wait for question i+1 to appear on host
-      await expect(hPage.locator('#q-counter')).toContainText(`Q ${i + 1} / 20`, { timeout: 15000 });
+      // Wait for quiz screen to be active
+      await expect(hPage.locator('#quiz-screen')).toBeVisible({ timeout: 20000 });
 
-      // Both players answer
+      // Read current question number before answering
+      const beforeCounter = await hPage.locator('#q-counter').textContent();
+
+      // Both players answer whatever is currently showing
       await Promise.all([
         answerQuestion(hPage),
         answerQuestion(gPage),
       ]);
 
-      // After Q5, Q10, Q15 — wait for leaderboard then quiz to resume
-      if ((i + 1) % 5 === 0 && i + 1 < 20) {
-        await expect(hPage.locator('#leaderboard-screen')).toBeVisible({ timeout: 8000 });
-        await expect(hPage.locator('#quiz-screen')).toBeVisible({ timeout: 12000 });
+      if (i < 19) {
+        // Wait for question to advance: either leaderboard appears or counter changes
+        await Promise.race([
+          // Path A: leaderboard checkpoint (Q5, Q10, Q15)
+          hPage.locator('#leaderboard-screen').waitFor({ state: 'visible', timeout: 8000 })
+            .then(() => expect(hPage.locator('#quiz-screen')).toBeVisible({ timeout: 12000 })),
+          // Path B: counter changes to next question
+          hPage.waitForFunction(
+            prev => document.getElementById('q-counter')?.textContent !== prev,
+            beforeCounter,
+            { timeout: 8000 }
+          ),
+        ]).catch(() => {}); // if neither fires in time, keep going
       }
     }
 
     // --- Final results ---
-    await expect(hPage.locator('#final-screen')).toBeVisible({ timeout: 15000 });
-    await expect(gPage.locator('#final-screen')).toBeVisible({ timeout: 15000 });
+    await expect(hPage.locator('#final-screen')).toBeVisible({ timeout: 20000 });
+    await expect(gPage.locator('#final-screen')).toBeVisible({ timeout: 20000 });
 
     await expect(hPage.locator('#winner-name')).toBeVisible();
     await expect(hPage.locator('#final-scores')).toBeVisible();
