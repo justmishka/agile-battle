@@ -417,9 +417,9 @@ async function submitAnswer(correct, pts, timeUsed, q, qIdx) {
   const snap = await get(roomRef);
   const room = snap.val();
 
-  const newScore   = (room.scores[me.slot]  || 0) + pts;
-  const newCorrect = (room.correct[me.slot] || 0) + (correct ? 1 : 0);
-  const times      = [...(room.times[me.slot] || []), timeUsed];
+  const newScore   = (room.scores?.[me.slot]  || 0) + pts;
+  const newCorrect = (room.correct?.[me.slot] || 0) + (correct ? 1 : 0);
+  const times      = [...(room.times?.[me.slot]  || []), timeUsed];
 
   const upd = {};
   upd[`answers/q${qIdx}_${me.slot}`] = { correct, pts, timeUsed };
